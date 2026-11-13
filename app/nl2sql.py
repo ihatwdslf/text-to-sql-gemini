@@ -26,11 +26,12 @@ class AskResult:
 
 
 def ask(question: str, db_path: Path = config.DEMO_DB_PATH,
-        generate=llm.generate_sql) -> AskResult:
+        generate=None) -> AskResult:
     """
     Відповідає на запитання до бази.
     `generate` можна підмінити в тестах, щоб не звертатися до справжнього Gemini.
     """
+    generate = generate or llm.generate_sql
     schema = get_schema(db_path)
     gemini_ms = sql_ms = 0.0
     sql, error = None, None

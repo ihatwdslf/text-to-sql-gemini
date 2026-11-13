@@ -14,13 +14,6 @@ from app.llm import SQLAnswer
 from app.nl2sql import ask
 
 
-@pytest.fixture(scope="session", autouse=True)
-def demo_db():
-    if not DEMO_DB_PATH.exists():
-        from scripts.create_demo_db import main
-        main()
-
-
 # ------------------------------------------------------------ безпека SQL
 
 @pytest.mark.parametrize("sql", [
