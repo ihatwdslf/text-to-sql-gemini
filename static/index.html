@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Querio – запитання до бази даних звичайною мовою</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%234338ca'/><text x='16' y='22' font-size='17' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'>Q</text></svg>">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f6f7fb;
+    --card: #ffffff;
+    --text: #1d2130;
+    --muted: #6b7185;
+    --border: #e3e6ef;
+    --accent: #4338ca;
+    --accent-soft: #eef0ff;
+    --ok: #0f8a5f;
+    --warn-bg: #fff7e6;
+    --warn: #9a6200;
+    --err-bg: #fdecec;
+    --err: #b42318;
+    --code-bg: #161a2b;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.5;
+  }
+  header {
+    background: var(--card); border-bottom: 1px solid var(--border);
+    padding: 14px 28px; display: flex; align-items: center; gap: 14px;
+  }
+  .logo {
+    width: 36px; height: 36px; border-radius: 9px; background: var(--accent); color: #fff;
+    display: grid; place-items: center; font-weight: 700; font-size: 19px;
+  }
+  header h1 { font-size: 20px; margin: 0; letter-spacing: -0.2px; }
+  header p { margin: 0; color: var(--muted); font-size: 13px; }
+  .status { margin-left: auto; font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #c2c6d3; }
+  .dot.on { background: var(--ok); }
+
+  .layout {
+    display: grid; grid-template-columns: 280px 1fr; gap: 22px;
+    max-width: 1320px; margin: 22px auto; padding: 0 22px;
+  }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 18px 20px;
+  }
+  .card + .card { margin-top: 18px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 0 0 12px; }
+
+  /* --- схема бази --- */
+  details.table { border-bottom: 1px solid var(--border); padding: 7px 0; }
+  details.table:last-child { border-bottom: 0; }
+  details.table summary { cursor: pointer; font-weight: 600; display: flex; justify-content: space-between; list-style: none; }
+  details.table summary::-webkit-details-marker { display: none; }
+  details.table summary::before { content: "▸"; color: var(--muted); margin-right: 6px; transition: transform .15s; display: inline-block; }
+  details.table[open] summary::before { transform: rotate(90deg); }
+  details.table summary .name { flex: 1; font-family: Consolas, monospace; font-size: 14px; }
+  details.table summary .count { color: var(--muted); font-weight: 400; font-size: 12px; }
+  .cols { margin: 6px 0 2px 16px; padding: 0; list-style: none; font-size: 13px; }
+  .cols li { display: flex; justify-content: space-between; padding: 1px 0; font-family: Consolas, monospace; }
+  .cols .type { color: var(--muted); }
+  .pk { color: var(--accent); font-size: 11px; margin-left: 4px; }
+
+  .history-item {
+    display: block; width: 100%; text-align: left; background: none; border: 0; padding: 6px 8px;
+    border-radius: 7px; color: var(--text); cursor: pointer; font: inherit; font-size: 13px;
+  }
+  .history-item:hover { background: var(--accent-soft); }
+  .empty { color: var(--muted); font-size: 13px; }
+
+  /* --- поле запитання --- */
+  .ask-row { display: flex; gap: 10px; }
+  textarea#question {
+    flex: 1; resize: vertical; min-height: 54px; padding: 13px 15px; font: inherit; font-size: 16px;
+    border: 1px solid var(--border); border-radius: 10px; outline: none;
+  }
+  textarea#question:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  button.primary {
+    background: var(--accent); color: #fff; border: 0; border-radius: 10px; padding: 0 24px;
+    font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap;
+  }
+  button.primary:hover { filter: brightness(1.1); }
+  button.primary:disabled { opacity: .55; cursor: progress; }
+  button.secondary {
+    background: var(--card); color: var(--accent); border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 14px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  button.secondary:hover { background: var(--accent-soft); }
+  .examples { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .examples span { color: var(--muted); font-size: 13px; }
+  .chip {
+    border: 1px solid var(--border); background: var(--bg); border-radius: 999px; padding: 4px 12px;
+    font: inherit; font-size: 13px; cursor: pointer; color: var(--text);
+  }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
+
+  /* --- результати --- */
+  #results { display: none; }
+  .grid2 { display: grid; grid-template-columns: 1.3fr 1fr; gap: 18px; }
+  @media (max-width: 1100px) { .grid2 { grid-template-columns: 1fr; } }
+  textarea#sql {
+    width: 100%; min-height: 150px; resize: vertical; background: var(--code-bg); color: #e3e8ff;
+    border: 0; border-radius: 10px; padding: 14px; font-family: Consolas, "Courier New", monospace;
+    font-size: 13.5px; line-height: 1.55; outline: none;
+  }
+  .sql-actions { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+  .sql-actions .note { color: var(--muted); font-size: 12px; }
+  .explanation { font-size: 15px; margin: 0 0 14px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; }
+  .badge {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 3px 9px;
+    font-size: 12px; color: var(--muted);
+  }
+  .badge b { color: var(--text); font-weight: 600; }
+
+  .result-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .result-head h2 { margin: 0; }
+  .table-wrap { max-height: 430px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { padding: 8px 12px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+  th { position: sticky; top: 0; background: #f0f2f8; font-weight: 600; z-index: 1; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: #fafbff; }
+  .chart-box { position: relative; height: 340px; margin-top: 18px; }
+
+  .notice { padding: 14px 16px; border-radius: 10px; font-size: 15px; }
+  .notice.info { background: var(--warn-bg); color: var(--warn); }
+  .notice.error { background: var(--err-bg); color: var(--err); }
+
+  .loader { display: none; align-items: center; gap: 10px; color: var(--muted); margin-top: 14px; font-size: 14px; }
+  .spinner {
+    width: 18px; height: 18px; border: 2.5px solid var(--border); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  footer { text-align: center; color: var(--muted); font-size: 12px; padding: 10px 0 28px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Q</div>
+  <div>
+    <h1>Querio</h1>
+    <p>Запитання до бази даних звичайною мовою → SQL → результат</p>
+  </div>
+  <div class="status"><span class="dot" id="statusDot"></span><span id="statusText">Підключення…</span></div>
+</header>
+
+<div class="layout">
+  <!-- ліва колонка: схема та історія -->
+  <aside>
+    <div class="card">
+      <h2>База даних: <span id="dbName">…</span></h2>
+      <div id="schema"><p class="empty">Завантаження схеми…</p></div>
+    </div>
+    <div class="card">
+      <h2>Історія запитань</h2>
+      <div id="history"><p class="empty">Тут з'являться твої запитання</p></div>
+    </div>
+  </aside>
+
+  <!-- права колонка: запитання та результати -->
+  <main>
+    <div class="card">
+      <div class="ask-row">
+        <textarea id="question" rows="2"
+          placeholder="Наприклад: Які 5 товарів принесли найбільше виручки у 2025 році?"></textarea>
+        <button class="primary" id="askBtn">Запитати</button>
+      </div>
+      <div class="examples">
+        <span>Приклади:</span>
+        <button class="chip">Топ-5 товарів за виручкою у 2025 році</button>
+        <button class="chip">Кількість замовлень по місяцях</button>
+        <button class="chip">Частка виручки за категоріями</button>
+        <button class="chip">Середній чек по містах</button>
+        <button class="chip">Клієнти, які не зробили жодного замовлення</button>
+      </div>
+      <div class="hint">Ctrl + Enter – надіслати запитання</div>
+      <div class="loader" id="loader"><div class="spinner"></div><span id="loaderText">Gemini пише SQL-запит…</span></div>
+    </div>
+
+    <div id="results">
+      <div class="card grid2">
+        <div>
+          <h2>SQL-запит</h2>
+          <textarea id="sql" spellcheck="false"></textarea>
+          <div class="sql-actions">
+            <button class="secondary" id="runBtn">▶ Виконати SQL</button>
+            <span class="note">Запит можна відредагувати та виконати без Gemini</span>
+          </div>
+        </div>
+        <div>
+          <h2>Пояснення</h2>
+          <p class="explanation" id="explanation"></p>
+          <div class="meta" id="meta"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="result-head">
+          <h2 id="resultTitle">Результат</h2>
+          <button class="secondary" id="csvBtn">⬇ Завантажити CSV</button>
+        </div>
+        <div id="resultBody"></div>
+        <div class="chart-box" id="chartBox"><canvas id="chart"></canvas></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<footer>Querio · FastAPI + Google Gemini API · Лабораторна робота з хмарних обчислень</footer>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const fmt = new Intl.NumberFormat("uk-UA", { maximumFractionDigits: 2 });
+let lastData = null;      // останній результат (для CSV і графіка)
+let lastChart = null;     // поради Gemini щодо графіка
+let chartInstance = null;
+let history = [];
+
+// ------------------------------------------------------------ запити до API
+
+async function api(path, body) {
+  const res = await fetch(path, body ? {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  } : {});
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    let detail = data.detail;
+    if (Array.isArray(detail)) detail = "Запитання має містити від 3 до 500 символів.";
+    throw new Error(detail || `Помилка сервера (${res.status})`);
+  }
+  return data;
+}
+
+// ------------------------------------------------------------ стан сервісу і схема
+
+async function loadStatus() {
+  try {
+    const h = await api("/api/health");
+    $("statusDot").classList.add("on");
+    $("statusText").textContent = `Онлайн · ${h.model}`;
+  } catch {
+    $("statusText").textContent = "Сервер недоступний";
+  }
+}
+
+async function loadSchema() {
+  try {
+    const s = await api("/api/schema");
+    $("dbName").textContent = s.database;
+    $("schema").innerHTML = s.tables.map(t => `
+      <details class="table">
+        <summary><span class="name">${esc(t.name)}</span><span class="count">${fmt.format(t.rows)} рядків</span></summary>
+        <ul class="cols">
+          ${t.columns.map(c => `<li><span>${esc(c.name)}${c.pk ? '<span class="pk">PK</span>' : ""}</span>
+            <span class="type">${esc(c.type.toLowerCase())}</span></li>`).join("")}
+        </ul>
+      </details>`).join("");
+  } catch (e) {
+    $("schema").innerHTML = `<p class="empty">Не вдалося завантажити схему: ${esc(e.message)}</p>`;
+  }
+}
+
+// ------------------------------------------------------------ головна дія
+
+async function askQuestion(text) {
+  const question = (text ?? $("question").value).trim();
+  if (question.length < 3) { $("question").focus(); return; }
+  $("question").value = question;
+  setLoading(true, "Gemini пише SQL-запит…");
+  try {
+    const r = await api("/api/ask", { question });
+    addHistory(question);
+    showResults(r);
+  } catch (e) {
+    showError(e.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function runSql() {
+  const sql = $("sql").value.trim();
+  if (!sql) return;
+  setLoading(true, "Виконання SQL…");
+  try {
+    const r = await api("/api/run", { sql });
+    $("explanation").textContent = "SQL виконано вручну, без Gemini – пояснення стосується попереднього запиту.";
+    renderMeta({ timings_ms: r.timings_ms, model: null, attempts: null, edited: true });
+    renderResult(r.result, null);
+  } catch (e) {
+    $("resultTitle").textContent = "Результат";
+    $("resultBody").innerHTML = `<div class="notice error">${esc(e.message)}</div>`;
+    lastData = null;
+    hideChart();
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ------------------------------------------------------------ відображення
+
+function showResults(r) {
+  $("results").style.display = "block";
+  $("sql").value = formatSql(r.sql);
+  fitSql();
+  $("explanation").textContent = r.explanation;
+  lastChart = { type: r.chart, x: r.x_column, y: r.y_column };
+  renderMeta(r);
+  if (r.error) {
+    $("resultTitle").textContent = "Результат";
+    $("resultBody").innerHTML = `<div class="notice error">${esc(r.error)}</div>`;
+    lastData = null;
+    hideChart();
+  } else {
+    renderResult(r.result, lastChart);
+  }
+}
+
+function showError(message) {
+  $("results").style.display = "block";
+  $("sql").value = "";
+  $("explanation").textContent = "";
+  $("meta").innerHTML = "";
+  $("resultTitle").textContent = "Помилка";
+  $("resultBody").innerHTML = `<div class="notice error">${esc(message)}</div>`;
+  lastData = null;
+  hideChart();
+}
+
+function renderMeta(r) {
+  const parts = [];
+  if (r.model) parts.push(`Модель: <b>${esc(r.model)}</b>`);
+  if (r.attempts > 1) parts.push(`Спроб: <b>${r.attempts}</b> (SQL виправлено автоматично)`);
+  if (r.timings_ms?.gemini != null) parts.push(`Gemini: <b>${fmt.format(r.timings_ms.gemini / 1000)} с</b>`);
+  if (r.timings_ms?.sql != null) parts.push(`SQL: <b>${fmt.format(r.timings_ms.sql)} мс</b>`);
+  if (r.edited) parts.push("<b>Виконано відредагований SQL</b>");
+  $("meta").innerHTML = parts.map(p => `<span class="badge">${p}</span>`).join("");
+}
+
+function renderResult(result, chart) {
+  lastData = result;
+  const { columns, rows } = result;
+
+  // Службове повідомлення (лише читання / не стосується бази)
+  if (columns.length === 1 && columns[0] === "Повідомлення") {
+    $("resultTitle").textContent = "Результат";
+    $("resultBody").innerHTML = `<div class="notice info">${esc(rows[0]?.[0] ?? "")}</div>`;
+    hideChart();
+    return;
+  }
+
+  $("resultTitle").textContent =
+    `Результат · ${fmt.format(result.row_count)} ${plural(result.row_count)}` +
+    (result.truncated ? " (показано перші 1000)" : "");
+
+  if (rows.length === 0) {
+    $("resultBody").innerHTML = `<div class="notice info">Запит не повернув жодного рядка.</div>`;
+    hideChart();
+    return;
+  }
+
+  const isNum = columns.map((_, i) => rows.every(r => r[i] === null || typeof r[i] === "number"));
+  $("resultBody").innerHTML = `
+    <div class="table-wrap"><table>
+      <thead><tr>${columns.map(c => `<th>${esc(c)}</th>`).join("")}</tr></thead>
+      <tbody>${rows.map(r => `<tr>${r.map((v, i) =>
+        `<td class="${isNum[i] ? "num" : ""}">${v === null ? "—" : isNum[i] ? fmt.format(v) : esc(v)}</td>`
+      ).join("")}</tr>`).join("")}</tbody>
+    </table></div>`;
+
+  drawChart(columns, rows, isNum, chart ?? guessChart(columns, isNum));
+}
+
+// ------------------------------------------------------------ графік
+
+function guessChart(columns, isNum) {
+  // Для відредагованого SQL: якщо є текстова і числова колонка – стовпчики
+  const x = columns.findIndex((_, i) => !isNum[i]);
+  const y = columns.findIndex((_, i) => isNum[i]);
+  if (x === -1 || y === -1) return { type: "none" };
+  const looksLikeDate = /^\d{4}(-\d{2})?(-\d{2})?$/;
+  const type = lastData.rows.every(r => looksLikeDate.test(String(r[x]))) ? "line" : "bar";
+  return { type, x: columns[x], y: columns[y] };
+}
+
+function drawChart(columns, rows, isNum, chart) {
+  let xi = columns.indexOf(chart.x);
+  let yi = columns.indexOf(chart.y);
+  // Якщо назви колонок не збіглися – беремо першу текстову та першу числову
+  if (xi === -1) xi = columns.findIndex((_, i) => !isNum[i]);
+  if (yi === -1 || !isNum[yi]) yi = columns.findIndex((_, i) => isNum[i] && i !== xi);
+  if (chart.type === "none" || xi === -1 || yi === -1 || rows.length < 2) { hideChart(); return; }
+
+  const data = rows.slice(0, 50);
+  const palette = ["#4338ca", "#0f8a5f", "#d97706", "#db2777", "#0891b2", "#7c3aed", "#65a30d", "#dc2626"];
+  $("chartBox").style.display = "block";
+  if (chartInstance) chartInstance.destroy();
+  chartInstance = new Chart($("chart"), {
+    type: chart.type,
+    data: {
+      labels: data.map(r => r[xi]),
+      datasets: [{
+        label: columns[yi],
+        data: data.map(r => r[yi]),
+        backgroundColor: chart.type === "pie" ? palette : chart.type === "line" ? "rgba(67,56,202,.12)" : "#4338ca",
+        borderColor: chart.type === "pie" ? "#fff" : "#4338ca",
+        borderWidth: chart.type === "line" ? 2.5 : 1,
+        fill: chart.type === "line",
+        tension: 0.3,
+        borderRadius: chart.type === "bar" ? 6 : 0,
+        pointRadius: chart.type === "line" ? 3 : 0,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: chart.type === "pie", position: "right" },
+        tooltip: { callbacks: { label: (c) => {
+          const v = c.parsed.y ?? c.parsed;
+          if (chart.type !== "pie") return `${columns[yi]}: ${fmt.format(v)}`;
+          const total = c.dataset.data.reduce((a, b) => a + (b || 0), 0);
+          return `${fmt.format(v)} (${fmt.format(v / total * 100)} %)`;
+        } } },
+      },
+      scales: chart.type === "pie" ? {} : {
+        y: { beginAtZero: true, ticks: { callback: (v) => fmt.format(v) }, title: { display: true, text: columns[yi] } },
+        x: { title: { display: true, text: columns[xi] } },
+      },
+    },
+  });
+}
+
+function hideChart() {
+  $("chartBox").style.display = "none";
+  if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+}
+
+// ------------------------------------------------------------ CSV та історія
+
+function downloadCsv() {
+  if (!lastData) return;
+  const cell = (v) => v === null ? "" : /[",;\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
+  const lines = [lastData.columns, ...lastData.rows].map(r => r.map(cell).join(","));
+  // BOM, щоб Excel правильно показав кирилицю
+  const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "querio_result.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function addHistory(q) {
+  history = [q, ...history.filter(h => h !== q)].slice(0, 10);
+  try { localStorage.setItem("querio_history", JSON.stringify(history)); } catch {}
+  renderHistory();
+}
+
+function renderHistory() {
+  $("history").innerHTML = history.length
+    ? history.map(h => `<button class="history-item">${esc(h)}</button>`).join("")
+    : `<p class="empty">Тут з'являться твої запитання</p>`;
+  $("history").querySelectorAll(".history-item").forEach(b =>
+    b.addEventListener("click", () => askQuestion(b.textContent)));
+}
+
+// ------------------------------------------------------------ допоміжне
+
+function setLoading(on, text) {
+  $("loader").style.display = on ? "flex" : "none";
+  if (text) $("loaderText").textContent = text;
+  $("askBtn").disabled = on;
+  $("runBtn").disabled = on;
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function plural(n) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return "рядок";
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return "рядки";
+  return "рядків";
+}
+
+function fitSql() {
+  // Висота поля SQL підлаштовується під кількість рядків
+  const ta = $("sql");
+  ta.style.height = "auto";
+  ta.style.height = Math.max(150, ta.scrollHeight + 4) + "px";
+}
+
+function formatSql(sql) {
+  // Перенос рядка перед основними ключовими словами – щоб SQL було легше читати
+  return sql
+    .replace(/\s+/g, " ")
+    .replace(/\s+(FROM|WHERE|GROUP BY|ORDER BY|HAVING|LIMIT|LEFT JOIN|INNER JOIN|JOIN|UNION ALL|UNION)\b/gi, "\n$1")
+    .trim();
+}
+
+// ------------------------------------------------------------ старт
+
+$("askBtn").addEventListener("click", () => askQuestion());
+$("runBtn").addEventListener("click", runSql);
+$("sql").addEventListener("input", fitSql);
+$("csvBtn").addEventListener("click", downloadCsv);
+$("question").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); askQuestion(); }
+});
+document.querySelectorAll(".chip").forEach(c => c.addEventListener("click", () => askQuestion(c.textContent)));
+
+try { history = JSON.parse(localStorage.getItem("querio_history")) || []; } catch { history = []; }
+renderHistory();
+loadStatus();
+loadSchema();
+</script>
+</body>
+</html>
