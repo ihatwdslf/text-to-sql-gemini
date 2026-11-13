@@ -1,0 +1,4 @@
+# Залежності для розробки й тестів (локально):  pip install -r requirements-dev.txt
+-r requirements.txt
+pytest
+httpx

@@ -1,0 +1,11 @@
+# Секрети та локальне середовище не потрапляють в образ
+.env
+.venv/
+venv/
+.git/
+.idea/
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/
+data/

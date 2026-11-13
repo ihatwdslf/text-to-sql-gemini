@@ -301,6 +301,8 @@ async function runSql() {
     renderMeta({ timings_ms: r.timings_ms, model: null, attempts: null, edited: true });
     renderResult(r.result, null);
   } catch (e) {
+    $("explanation").textContent = "SQL виконано вручну, без Gemini.";
+    renderMeta({ edited: true });
     $("resultTitle").textContent = "Результат";
     $("resultBody").innerHTML = `<div class="notice error">${esc(e.message)}</div>`;
     lastData = null;
