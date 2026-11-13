@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+google-genai
+python-dotenv
+python-multipart
+pandas
+pytest
+httpx

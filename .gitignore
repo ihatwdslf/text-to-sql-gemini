@@ -1,0 +1,15 @@
+# секрети – ключ НІКОЛИ не потрапляє на GitHub
+.env
+
+# віртуальне середовище і кеш
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# PyCharm
+.idea/
+
+# завантажені користувачами CSV
+data/uploads/
